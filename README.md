@@ -5,7 +5,7 @@
 # Install
 
 ```
-go install github.com/defool/gorun
+go install github.com/defool/gorun@v1.0.0
 ```
 
 # Usage
