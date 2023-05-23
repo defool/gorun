@@ -31,8 +31,22 @@ func main() {
 	go func() {
 		<-sigc
 		if runCmd != nil {
-			syscall.Kill(-runCmd.Process.Pid, syscall.SIGKILL)
-			time.Sleep(time.Millisecond * 100)
+			fmt.Println("start gracefully stop")
+			syscall.Kill(-runCmd.Process.Pid, syscall.SIGTERM)
+			gracefulTimeout := time.NewTimer(time.Second * 10).C
+			exit := make(chan bool, 1)
+			go func() {
+				runCmd.Wait()
+				exit <- true
+			}()
+			select {
+			case <-exit:
+				fmt.Println("gracefully stop successfully")
+			case <-gracefulTimeout:
+				fmt.Println("gracefully stop failed, force exit")
+				syscall.Kill(-runCmd.Process.Pid, syscall.SIGKILL)
+				time.Sleep(time.Millisecond * 100)
+			}
 		}
 		os.Exit(0)
 	}()
