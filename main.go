@@ -19,7 +19,7 @@ func main() {
 	callback := func() {
 		events <- true
 	}
-	go scanChanges(".", nil, false, callback)
+	go scanChanges(".", callback)
 
 	var runCmd *exec.Cmd
 	sigc := make(chan os.Signal, 1)
@@ -88,16 +88,20 @@ func main() {
 	}
 }
 
-func scanChanges(watchPath string, excludeDirs []string, allFiles bool, callback func()) {
+func scanChanges(watchPath string, callback func()) {
+	skipDIRs := map[string]bool{
+		".git": true, ".venv": true,
+	}
+	if s := os.Getenv("GORUN_SKIP_DIRS"); s != "" {
+		for _, x := range strings.Split(s, ":") {
+			skipDIRs[x] = true
+		}
+	}
+	allFiles := os.Getenv("GORUN_ALL_FILES") == "1"
 	for {
 		filepath.Walk(watchPath, func(path string, info os.FileInfo, err error) error {
-			if path == ".git" && info.IsDir() {
+			if skipDIRs[path] {
 				return filepath.SkipDir
-			}
-			for _, x := range excludeDirs {
-				if x == path {
-					return filepath.SkipDir
-				}
 			}
 
 			// ignore hidden files
