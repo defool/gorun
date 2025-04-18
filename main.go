@@ -73,8 +73,12 @@ func main() {
 	if lang == "" {
 		lang = "go"
 	}
+	dir := os.Getenv("GORUN_SCAN_DIR")
+	if dir == "" {
+		dir = "."
+	}
 	opt := getOptions(lang)
-	go scanChanges(".", opt, callback)
+	go scanChanges(dir, opt, callback)
 
 	var runCmd *exec.Cmd
 	sigc := make(chan os.Signal, 1)
