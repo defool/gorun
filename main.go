@@ -12,6 +12,56 @@ import (
 	"time"
 )
 
+type langOption interface {
+	cmd() string
+	args() []string
+	ext() string
+}
+
+func getOptions(lang string) langOption {
+	switch lang {
+	case "python":
+		return &pythonOption{}
+	case "python3":
+		return &python3Option{}
+	case "go":
+		return &goOption{}
+	default:
+		panic("unsupported language:" + lang)
+	}
+}
+
+type pythonOption struct{}
+type python3Option struct {
+	pythonOption
+}
+
+func (o *python3Option) cmd() string {
+	return "python3"
+}
+
+func (o *pythonOption) cmd() string {
+	return "python"
+}
+func (o *pythonOption) args() []string {
+	return []string{}
+}
+func (o *pythonOption) ext() string {
+	return ".py"
+}
+
+type goOption struct{}
+
+func (o *goOption) cmd() string {
+	return "go"
+}
+func (o *goOption) args() []string {
+	return []string{"run"}
+}
+func (o *goOption) ext() string {
+	return ".go"
+}
+
 var startTime = time.Now()
 
 func main() {
@@ -19,7 +69,12 @@ func main() {
 	callback := func() {
 		events <- true
 	}
-	go scanChanges(".", callback)
+	lang := os.Getenv("GORUN_LANG")
+	if lang == "" {
+		lang = "go"
+	}
+	opt := getOptions(lang)
+	go scanChanges(".", opt, callback)
 
 	var runCmd *exec.Cmd
 	sigc := make(chan os.Signal, 1)
@@ -56,9 +111,9 @@ func main() {
 			syscall.Kill(-runCmd.Process.Pid, syscall.SIGKILL)
 			time.Sleep(time.Millisecond * 100)
 		}
-		args := []string{"run"}
+		args := opt.args()
 		args = append(args, os.Args[1:]...)
-		runCmd = exec.Command("go", args...)
+		runCmd = exec.Command(opt.cmd(), args...)
 		runCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 		runCmd.Stdin = os.Stdin
@@ -88,7 +143,7 @@ func main() {
 	}
 }
 
-func scanChanges(watchPath string, callback func()) {
+func scanChanges(watchPath string, opt langOption, callback func()) {
 	skipDIRs := map[string]bool{
 		".git": true, ".venv": true,
 	}
@@ -109,7 +164,7 @@ func scanChanges(watchPath string, callback func()) {
 				return nil
 			}
 
-			if (allFiles || filepath.Ext(path) == ".go") && info.ModTime().After(startTime) {
+			if (allFiles || filepath.Ext(path) == opt.ext()) && info.ModTime().After(startTime) {
 				callback()
 				startTime = time.Now()
 				return errors.New("done")
